@@ -80,3 +80,22 @@ export async function getGroups({ keycloakBaseUrl, accessToken, realm }) {
 
     return data;
 }
+
+/**
+ * Get all roles for keycloak instance
+ * 
+ * @param {{keycloakBaseUrl:string, accessToken:string, realm:string }} AuthConfigs configs returned after authentication
+ * @returns {Object[]} All groups
+ */
+export async function getRoles({ keycloakBaseUrl, accessToken, realm }) {
+    const { data } = await axios.request({
+        method: 'get',
+        maxBodyLength: Infinity,
+        url: `${keycloakBaseUrl}/admin/realms/${realm}/roles`,
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        }
+    });
+
+    return data;
+}

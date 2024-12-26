@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "author": {
+    "name": "Rohan Sawant",
+    "email": "rohan.sawant@zconsolutions.com"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.7.7"
+    "axios": "^1.7.7",
+    "uuid": "^11.0.3"
   }
 }
