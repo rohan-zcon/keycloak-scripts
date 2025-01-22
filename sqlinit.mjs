@@ -1,7 +1,12 @@
-import 'dotenv/config'
-import { argv } from 'node:process';
-import { argsParser } from './shared.mjs';
-import Sequelize from 'sequelize';
+// import 'dotenv/config'
+// import { argv } from 'node:process';
+// import { argsParser } from './shared.mjs';
+// import Sequelize from 'sequelize';
+
+require('dotenv').config();
+// const {argv} = require('node:process');
+const Sequelize = require('sequelize');
+
 const uatConfig = {
     host: process.env.UAT_DBHOST,
     user: process.env.UAT_DBUSER,
@@ -19,6 +24,17 @@ const prodConfig = {
     driver: 'postgres',
     dialect: 'postgres'
 };
+
+function argsParser(args, validArgsOpts) {
+    const parsedArgs = {};
+    args.forEach(arg => {
+        const [k, v] = arg.split('=');
+        const key = k.slice(k.indexOf('--') + 2);
+        if (!validArgsOpts.includes(key)) throw new Error(`invalid arg: ${key}`);
+        parsedArgs[key] = v;
+    });
+    return parsedArgs;
+}
 
 
 const startConnection = async (env, ssl) => {
@@ -54,7 +70,7 @@ const startConnection = async (env, ssl) => {
 
 async function start() {
     try {
-        const args = argsParser(argv.slice(2), ['env', 'ssl']);
+        const args = argsParser(process.argv.slice(2), ['env', 'ssl']);
         console.log("start ~ args:", args);
 
         await startConnection(args.env, args.ssl);
