@@ -13,7 +13,7 @@ Email: rohan.sawant@zconsolutions.com
 
 ## Usage
 
-## Tenant onboarding (bash)
+## Tenant onboarding (node)
 ```bash 
 node tenantOnboarding.mjs --realm=<REALM_NAME> --client='rehab-tracker-resource-server' --secret=<CLIENT_SECRET> --url='http://localhost:8080/auth' --tenant_name=<TENANT_NAME> --new_tenant_admin_name=<TENANT_ADMIN_NAME> --tenant_admin_email=<TENANT_ADMIN_EMAIL> --tenant_admin_password=<TENANT_ADMIN_PASSWORD>
 ```
