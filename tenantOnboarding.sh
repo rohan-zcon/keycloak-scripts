@@ -42,8 +42,9 @@ prompt() {
 prompt_secret() {
   local __var="$1" __label="$2"
   local __value
-  read -rsp "${__label}: " __value
-  echo
+  # Typed in plain (not -s/hidden) - this is a one-time onboarding run, not worth the
+  # UX hit of silent input.
+  read -rp "${__label}: " __value
   [[ -n "$__value" ]] || { echo "${__label} is required" >&2; exit 1; }
   printf -v "$__var" '%s' "$__value"
 }
@@ -216,18 +217,17 @@ for entry in "${SUBGROUPS[@]}"; do
     '{name: $name, path: $path, subGroups: [],
       access: {view: true, manage: true, manageMembership: true}}')"
 
-  kc_request POST \
+  # POST .../children returns the newly created subgroup's own representation in the
+  # response body (id included, per Keycloak's GroupResource#addChild), same as
+  # tenantOnboarding.mjs relies on - no need for a second round-trip to look it up by
+  # re-fetching the parent and matching its embedded subGroups by name, which is one
+  # more place a given Keycloak version's read-back of that list could disagree with
+  # what actually got persisted.
+  sub_id="$(kc_request POST \
     "${KEYCLOAK_URL}/admin/realms/${REALM}/groups/${PARENT_GROUP_ID}/children" \
-    "$sub_payload" >/dev/null
+    "$sub_payload" | jq -r '.id')"
 
-  # GET .../groups/{id}/children isn't implemented on every Keycloak version (some
-  # only wire up POST on that sub-resource) - fetching the parent group's own
-  # representation and reading its embedded subGroups works everywhere.
-  sub_id="$(kc_request GET \
-    "${KEYCLOAK_URL}/admin/realms/${REALM}/groups/${PARENT_GROUP_ID}" \
-    | jq -r --arg name "$sub_name" '.subGroups[]? | select(.name == $name) | .id')"
-
-  if [[ -z "$sub_id" ]]; then
+  if [[ -z "$sub_id" || "$sub_id" == "null" ]]; then
     echo "Could not find newly created subgroup '${sub_name}'" >&2
     exit 1
   fi
@@ -324,15 +324,36 @@ INSERT INTO task_and_task_list_name (id, task_id, task_list_name_id, created_at,
 SELECT gen_random_uuid(), tm.new_task_id, :'new_task_list_id', now(), now()
 FROM tmp_task_map tm;
 
+-- 5. hoa_section_manager row for the new tenant, all flags on - previously a manual
+-- INSERT run once per new tenant (see database/sql/hoa_section_manager_initial_data.sql
+-- for the same shape backfilled across existing tenants). Uses gen_random_uuid()
+-- rather than the uuid_generate_v4() that manual query used, so this doesn't pick up a
+-- dependency on the uuid-ossp extension - both just generate a random UUIDv4.
+INSERT INTO hoa_section_manager (
+  id, tenant_id, applicant_information,
+  doc_client_as_sda, cert_compliance_lshr,
+  coi_disclosure, homeowner_agreement,
+  created_at, updated_at
+)
+VALUES (
+  gen_random_uuid(), :'new_tenant_id', true, true, true, true, true, now(), now()
+);
+
 COMMIT;
 SQL
 
+# psql only interpolates :'var' for SQL read via stdin/a script, not for -c, so these
+# have to go through a heredoc like the migration above rather than -c.
 GROUP_COUNT="$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -Atq \
-  -v new_tenant_id="$NEW_TENANT_ID" \
-  -c "SELECT count(*) FROM task_group WHERE tenant_id = :'new_tenant_id';" 2>/dev/null || echo '?')"
+  -v new_tenant_id="$NEW_TENANT_ID" <<'SQL' || echo '?'
+SELECT count(*) FROM task_group WHERE tenant_id = :'new_tenant_id';
+SQL
+)"
 TASK_COUNT="$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -Atq \
-  -v new_tenant_id="$NEW_TENANT_ID" \
-  -c "SELECT count(*) FROM task WHERE tenant_id = :'new_tenant_id';" 2>/dev/null || echo '?')"
+  -v new_tenant_id="$NEW_TENANT_ID" <<'SQL' || echo '?'
+SELECT count(*) FROM task WHERE tenant_id = :'new_tenant_id';
+SQL
+)"
 
 unset PGPASSWORD
 trap - EXIT
